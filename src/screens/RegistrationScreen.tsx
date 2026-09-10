@@ -3,8 +3,10 @@
  * keyboard avoidance, and safe-area bottom spacing.
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Dimensions,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -30,6 +32,14 @@ import { spacing, typography } from '../theme';
 
 type Props = StackScreenProps<AuthStackParamList, 'Registration'>;
 
+type FieldKey =
+  | 'fullName'
+  | 'email'
+  | 'mobile'
+  | 'address'
+  | 'password'
+  | 'confirmPassword';
+
 const initialValues: RegistrationFormValues = {
   fullName: '',
   email: '',
@@ -41,13 +51,90 @@ const initialValues: RegistrationFormValues = {
   confirmPassword: '',
 };
 
+/** Keep focused field fully above the keyboard (not half-covered) */
+const KEYBOARD_FIELD_GAP = 28;
+
 const RegistrationScreen: React.FC<Props> = ({ navigation }) => {
   const { colors, register } = useApp();
   const { showPopup } = usePopup();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const fieldRefs = useRef<Partial<Record<FieldKey, View | null>>>({});
+  const focusedField = useRef<FieldKey | null>(null);
+  const scrollY = useRef(0);
+  const keyboardHeightRef = useRef(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [values, setValues] = useState<RegistrationFormValues>(initialValues);
   const [errors, setErrors] = useState<FormErrors<RegistrationField>>({});
   const [loading, setLoading] = useState(false);
+
+  const ensureFieldAboveKeyboard = useCallback((key: FieldKey) => {
+    const node = fieldRefs.current[key];
+    if (!node) {
+      return;
+    }
+
+    node.measureInWindow((_x, y, _w, height) => {
+      const windowHeight = Dimensions.get('window').height;
+      const kb = keyboardHeightRef.current;
+      // Visible bottom edge of the form (top of keyboard, or screen bottom)
+      const visibleBottom =
+        kb > 0 ? windowHeight - kb : windowHeight - insets.bottom;
+      const fieldBottom = y + height;
+      const overflow = fieldBottom - (visibleBottom - KEYBOARD_FIELD_GAP);
+
+      if (overflow > 0) {
+        scrollRef.current?.scrollTo({
+          y: Math.max(0, scrollY.current + overflow),
+          animated: true,
+        });
+      }
+    });
+  }, [insets.bottom]);
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = Keyboard.addListener(showEvent, e => {
+      const height = e.endCoordinates.height;
+      keyboardHeightRef.current = height;
+      setKeyboardHeight(height);
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      keyboardHeightRef.current = 0;
+      setKeyboardHeight(0);
+      focusedField.current = null;
+    });
+
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
+
+  // Re-measure after keyboard finishes opening / bottom padding grows
+  useEffect(() => {
+    if (keyboardHeight <= 0 || !focusedField.current) {
+      return;
+    }
+    const key = focusedField.current;
+    const t = setTimeout(() => ensureFieldAboveKeyboard(key), 80);
+    return () => clearTimeout(t);
+  }, [keyboardHeight, ensureFieldAboveKeyboard]);
+
+  const scrollFieldIntoView = (key: FieldKey) => {
+    focusedField.current = key;
+    // First pass quickly, second pass after keyboard/layout settles
+    setTimeout(() => ensureFieldAboveKeyboard(key), Platform.OS === 'ios' ? 50 : 100);
+    setTimeout(() => ensureFieldAboveKeyboard(key), Platform.OS === 'ios' ? 280 : 350);
+  };
+
+  const setFieldRef = (key: FieldKey) => (ref: View | null) => {
+    fieldRefs.current[key] = ref;
+  };
 
   const update = <K extends keyof RegistrationFormValues>(
     key: K,
@@ -79,13 +166,18 @@ const RegistrationScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const goToLogin = () => {
-    // Prefer popping back to existing Login rather than stacking another copy
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
       navigation.navigate('Login');
     }
   };
+
+  // Enough scroll room so Confirm Password can move fully above the keyboard
+  const bottomPad =
+    Math.max(insets.bottom, spacing.lg) +
+    spacing.xxl +
+    (keyboardHeight > 0 ? keyboardHeight + 48 : 64);
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
@@ -95,33 +187,42 @@ const RegistrationScreen: React.FC<Props> = ({ navigation }) => {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
         <ScrollView
-          contentContainerStyle={[
-            styles.content,
-            // Keep "Already have an account?" above Android nav / home indicator
-            { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.xxl },
-          ]}
+          ref={scrollRef}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomPad }]}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+          onScroll={e => {
+            scrollY.current = e.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={16}>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Fill in all fields to register for Image Gallery.
+            Fill in all fields to register for Img Gallery.
           </Text>
 
-          <Input
-            label="Full Name *"
-            value={values.fullName}
-            onChangeText={t => update('fullName', t)}
-            error={errors.fullName}
-            autoCapitalize="words"
-          />
-          <Input
-            label="Email *"
-            value={values.email}
-            onChangeText={t => update('email', t)}
-            error={errors.email}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          <View ref={setFieldRef('fullName')}>
+            <Input
+              label="Full Name *"
+              value={values.fullName}
+              onChangeText={t => update('fullName', t)}
+              error={errors.fullName}
+              autoCapitalize="words"
+              onFocus={() => scrollFieldIntoView('fullName')}
+            />
+          </View>
+          <View ref={setFieldRef('email')}>
+            <Input
+              label="Email *"
+              value={values.email}
+              onChangeText={t => update('email', t)}
+              error={errors.email}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              onFocus={() => scrollFieldIntoView('email')}
+            />
+          </View>
           <RadioGroup
             label="Gender *"
             options={GENDERS.map(g => ({ label: g, value: g }))}
@@ -129,23 +230,29 @@ const RegistrationScreen: React.FC<Props> = ({ navigation }) => {
             onChange={v => update('gender', v as Gender)}
             error={errors.gender}
           />
-          <Input
-            label="Mobile (10 digits) *"
-            value={values.mobile}
-            onChangeText={t =>
-              update('mobile', t.replace(/[^0-9]/g, '').slice(0, 10))
-            }
-            error={errors.mobile}
-            keyboardType="number-pad"
-            maxLength={10}
-          />
-          <Input
-            label="Address *"
-            value={values.address}
-            onChangeText={t => update('address', t)}
-            error={errors.address}
-            multiline
-          />
+          <View ref={setFieldRef('mobile')}>
+            <Input
+              label="Mobile (10 digits) *"
+              value={values.mobile}
+              onChangeText={t =>
+                update('mobile', t.replace(/[^0-9]/g, '').slice(0, 10))
+              }
+              error={errors.mobile}
+              keyboardType="number-pad"
+              maxLength={10}
+              onFocus={() => scrollFieldIntoView('mobile')}
+            />
+          </View>
+          <View ref={setFieldRef('address')}>
+            <Input
+              label="Address *"
+              value={values.address}
+              onChangeText={t => update('address', t)}
+              error={errors.address}
+              multiline
+              onFocus={() => scrollFieldIntoView('address')}
+            />
+          </View>
           <Dropdown
             label="City *"
             options={CITIES}
@@ -154,20 +261,26 @@ const RegistrationScreen: React.FC<Props> = ({ navigation }) => {
             error={errors.city}
             placeholder="Select city"
           />
-          <Input
-            label="Password *"
-            value={values.password}
-            onChangeText={t => update('password', t)}
-            error={errors.password}
-            secureTextEntry
-          />
-          <Input
-            label="Confirm Password *"
-            value={values.confirmPassword}
-            onChangeText={t => update('confirmPassword', t)}
-            error={errors.confirmPassword}
-            secureTextEntry
-          />
+          <View ref={setFieldRef('password')}>
+            <Input
+              label="Password *"
+              value={values.password}
+              onChangeText={t => update('password', t)}
+              error={errors.password}
+              secureTextEntry
+              onFocus={() => scrollFieldIntoView('password')}
+            />
+          </View>
+          <View ref={setFieldRef('confirmPassword')}>
+            <Input
+              label="Confirm Password *"
+              value={values.confirmPassword}
+              onChangeText={t => update('confirmPassword', t)}
+              error={errors.confirmPassword}
+              secureTextEntry
+              onFocus={() => scrollFieldIntoView('confirmPassword')}
+            />
+          </View>
 
           <Button title="Register" onPress={onSubmit} loading={loading} />
 

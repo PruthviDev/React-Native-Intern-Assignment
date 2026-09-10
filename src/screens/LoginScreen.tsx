@@ -81,7 +81,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <Text style={[styles.brand, { color: colors.primary }]}>
-            Image Gallery
+            Img Gallery
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Sign in with your registered email and password.
