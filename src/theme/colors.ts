@@ -1,0 +1,68 @@
+/**
+ * Color tokens for light and dark themes.
+ * Teal/ink palette – intentional contrast without generic blue-on-white.
+ */
+
+export const lightColors = {
+  primary: '#0F766E',
+  primaryDark: '#0D5F59',
+  primaryMuted: 'rgba(15, 118, 110, 0.12)',
+  secondary: '#C2410C',
+  background: '#F1F4F3',
+  surface: '#FFFFFF',
+  card: '#FFFFFF',
+  text: '#14201E',
+  textSecondary: '#5B6B68',
+  border: '#D5DDDA',
+  error: '#C62828',
+  errorMuted: 'rgba(198, 40, 40, 0.08)',
+  success: '#2E7D32',
+  warning: '#B45309',
+  favorite: '#E11D48',
+  favoriteInactive: '#8A9A96',
+  overlay: 'rgba(15, 28, 26, 0.55)',
+  inputBackground: '#F7FAF9',
+  tabBar: '#FFFFFF',
+  tabInactive: '#7A8B87',
+  tabActiveBg: '#0F766E',
+  tabCapsule: '#E8EFED',
+  headerBg: '#FFFFFF',
+  shadow: '#0B1A18',
+  white: '#FFFFFF',
+  black: '#000000',
+  disabled: '#C5CFCC',
+  imagePlaceholder: '#DCE5E2',
+};
+
+export const darkColors: typeof lightColors = {
+  primary: '#2DD4BF',
+  primaryDark: '#14B8A6',
+  primaryMuted: 'rgba(45, 212, 191, 0.16)',
+  secondary: '#FB923C',
+  background: '#0B1412',
+  surface: '#15201E',
+  card: '#1A2623',
+  text: '#E8F2EF',
+  textSecondary: '#9BB0AB',
+  border: '#2A3A36',
+  error: '#F87171',
+  errorMuted: 'rgba(248, 113, 113, 0.12)',
+  success: '#4ADE80',
+  warning: '#FBBF24',
+  favorite: '#FB7185',
+  favoriteInactive: '#6B7F7A',
+  overlay: 'rgba(0, 0, 0, 0.72)',
+  inputBackground: '#101A18',
+  tabBar: '#15201E',
+  tabInactive: '#7A908A',
+  tabActiveBg: '#2DD4BF',
+  tabCapsule: '#1E2C29',
+  headerBg: '#15201E',
+  shadow: '#000000',
+  white: '#FFFFFF',
+  black: '#000000',
+  disabled: '#3D4F4A',
+  imagePlaceholder: '#243330',
+};
+
+export type AppColors = typeof lightColors;
